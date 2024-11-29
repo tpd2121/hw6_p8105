@@ -1,0 +1,45 @@
+---
+title: "hw6_p8105"
+output: html_document
+date: "2024-11-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(broom)
+library(ggridges)
+set.seed(1)
+```
+
+## Problem 2 
+
+2A. Data export and cleaning
+```{r homicide dataset}
+homicide = read.csv("./data/homicide-data.csv") %>% 
+  unite(city_state, c(city, state), sep = ", ") %>% 
+  mutate(
+    disposition = str_replace(disposition, "Closed by arrest", "Solved"), 
+    disposition = str_replace(disposition, "Closed without arrest", "Unsolved"), 
+    disposition = str_replace(disposition, "Open/No arrest", "Unsolved"), 
+    disposition_binary = ifelse(disposition == "Solved", 1, 0),
+    victim_age = as.numeric(victim_age)
+  ) %>% 
+  filter(!(city_state %in% c("Dallas, TX", "Phoenix, AZ", "Kansas City, MO", "Tulsa, AL"))) %>% 
+  filter(victim_race %in% c("White", "Black"))
+    
+```
+
+2B. Baltimore, MD
+```{r Baltimore}
+baltimore_glm = homicide %>% 
+  filter(city_state == "Baltimore, MD") %>%  
+  glm(disposition_binary ~ victim_age + victim_race + victim_sex, family = binomial(), data = .)
+  
+baltimore_data = baltimore_glm %>% 
+  broom::tidy() %>%  
+  mutate(OR = exp(estimate)) %>% 
+  select(term, log_OR = estimate, OR, p.value)
+  
+```
+
