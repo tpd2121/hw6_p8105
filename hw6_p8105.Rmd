@@ -71,11 +71,42 @@ homicide_glm = homicide %>%
     glm_result = map(data, homicide_function), 
     tidy_result = map(glm_result, broom::tidy), 
     confint_result = map(glm_result, ~ as.data.frame(confint(.x)))
+  ) %>% 
+  mutate(
+    stat_result = map2(tidy_result, confint_result, ~ {
+      tidy_df <- .x 
+      ci <- .y 
+      colnames(ci) <- c("conf_low", "conf_high") 
+      ci$term <- rownames(ci)
+      left_join(tidy_df, ci, by = "term")
+    })
   )
   
 #cannot put CI as part of the homicide function, as glm_data will end up being CI result instead of glm result
 #do separate mutate functions
 #how to extract the confint result?
 
+homicide_stat = homicide_glm %>% 
+  select(city_state, stat_result) %>% 
+  unnest(stat_result) %>% 
+  mutate(OR = exp(estimate)) %>% 
+  rename("log_OR" = "estimate") %>% 
+  filter(term == "victim_sexMale") %>% 
+  select(OR, conf_low, conf_high)
+
+knitr::kable(homicide_stat)
+```
+
+**2D. Plotting homicide stat**
+```{r homicide plot}
+homicide_plot = homicide_stat %>% 
+  pivot_longer(OR:conf_high,
+    names_to = "stat_term",
+    values_to = "stat_value"
+  )
+
+#OR plot
+ggplot(homicide_plot, aes(x = stat_term, y = stat_value)) + 
+  geom_violin(aes(fill = city_state), alpha = .5)
 ```
 
