@@ -48,9 +48,13 @@ CI = confint(baltimore_glm) %>%
   rename("conf_low" = "2.5 %", "conf_high" = "97.5 %")
   
 baltimore_data = left_join(tidy_baltimore, CI, by = "term") %>% 
-  mutate(OR = exp(estimate)) %>% 
+  mutate(
+    OR = exp(estimate),
+    conf_low2 = exp(conf_low), 
+    conf_high2 = exp(conf_high)
+    ) %>% 
   rename("log_OR" = "estimate") %>% 
-  select(term, OR, conf_low, conf_high) %>% 
+  select(term, OR, conf_low2, conf_high2) %>% 
   filter(term == "victim_sexMale")
   
 knitr::kable(baltimore_data)
@@ -89,24 +93,77 @@ homicide_glm = homicide %>%
 homicide_stat = homicide_glm %>% 
   select(city_state, stat_result) %>% 
   unnest(stat_result) %>% 
-  mutate(OR = exp(estimate)) %>% 
+  mutate(
+    OR = exp(estimate),
+    conf_low2 = exp(conf_low), 
+    conf_high2 = exp(conf_high),
+    city_state = as.factor(city_state)
+    ) %>% 
   rename("log_OR" = "estimate") %>% 
   filter(term == "victim_sexMale") %>% 
-  select(OR, conf_low, conf_high)
+  select(city_state, OR, conf_low2, conf_high2)
 
 knitr::kable(homicide_stat)
 ```
 
 **2D. Plotting homicide stat**
 ```{r homicide plot}
-homicide_plot = homicide_stat %>% 
-  pivot_longer(OR:conf_high,
-    names_to = "stat_term",
-    values_to = "stat_value"
-  )
+homicide_stat = homicide_stat %>% 
+  arrange(OR) %>% 
+  mutate(city_state = fct_reorder(city_state, OR))
 
-#OR plot
-ggplot(homicide_plot, aes(x = stat_term, y = stat_value)) + 
-  geom_violin(aes(fill = city_state), alpha = .5)
+ggplot(homicide_stat, aes(x = OR, y = city_state)) + 
+    geom_point() +
+    geom_errorbar(aes(xmin = conf_low2, xmax = conf_high2))
+
+#need to exp the CI too otherwise the OR falls outside of the CI range (bc the CI was still the original CI log)
+#fct_reorder not working
+#ggplot still change my df into list
 ```
 
+Comment on the plot
+
+## Problem 3
+3a. Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
+
+```{r bwt data, message=FALSE, warning=FALSE}
+bwt_masterdata = homicide = read.csv("./data/birthweight.csv") %>% 
+  mutate(
+    babysex = as.factor(babysex),
+    malform = as.factor(malform),
+    smoken = as.integer(round(smoken))
+  ) %>% 
+  drop_na()
+
+#ggplot(birthweight_masterdata, aes(x=wtgain)) +
+  #geom_histogram()
+#fincome, momage, race,  parity, pnumlbw, pnumsga, smoken are all non-normal distribution
+```
+
+3b. Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
+```{r bwt model}
+#loading packages
+
+
+#model building
+fit = lm(bwt ~ smoken + wtgain, data = bwt_masterdata) %>% 
+  broom::tidy()
+
+#add residuals
+modelr::add_residuals(bwt_masterdata, fit)
+
+#Error in eval(response_var(model), as.data.frame(data)) : object 'term' not found
+
+#add predictions
+modelr::add_predictions(bwt_masterdata, fit)
+
+#Error in UseMethod("predict") :   no applicable method for 'predict' applied to an object of class "c('tbl_df', 'tbl', 'data.frame')"
+```
+
+
+3c. Compare your model to two others:
+
+- One using length at birth and gestational age as predictors (main effects only)
+- One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+
+Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
