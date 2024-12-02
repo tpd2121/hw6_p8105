@@ -110,11 +110,17 @@ knitr::kable(homicide_stat)
 ```{r homicide plot}
 homicide_stat = homicide_stat %>% 
   arrange(OR) %>% 
-  mutate(city_state = fct_reorder(city_state, OR))
+  mutate(city_state = fct_inorder(city_state))
 
 ggplot(homicide_stat, aes(x = OR, y = city_state)) + 
     geom_point() +
-    geom_errorbar(aes(xmin = conf_low2, xmax = conf_high2))
+    geom_errorbar(aes(xmin = conf_low2, xmax = conf_high2)) +
+    labs(
+    x = "Estimates",
+    y = "City, State",
+    title = "OR & CI for homicide case outcome based on victim's gender"
+  ) +
+  theme_minimal()
 
 #need to exp the CI too otherwise the OR falls outside of the CI range (bc the CI was still the original CI log)
 #fct_reorder not working
@@ -124,8 +130,8 @@ ggplot(homicide_stat, aes(x = OR, y = city_state)) +
 Comment on the plot
 
 ## Problem 3
-3a. Load and clean the data for regression analysis (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
 
+**3a. Load and clean the data for regression analysis**
 ```{r bwt data, message=FALSE, warning=FALSE}
 bwt_masterdata = homicide = read.csv("./data/birthweight.csv") %>% 
   mutate(
@@ -140,8 +146,8 @@ bwt_masterdata = homicide = read.csv("./data/birthweight.csv") %>%
 #fincome, momage, race,  parity, pnumlbw, pnumsga, smoken are all non-normal distribution
 ```
 
-3b. Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
-```{r bwt model}
+**3b. Propose a regression model for birthweight. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.**
+```{r bwt model, warning=FALSE, message=FALSE, results='hide'}
 #loading packages
 library(modelr)
 
@@ -154,19 +160,99 @@ tidy_lm = fit%>%
 #add residuals
 modelr::add_residuals(bwt_masterdata, fit)
 
-#Error in eval(response_var(model), as.data.frame(data)) : object 'term' not found
-#fit cannot be used for modelr if I already tidy them, so I created new df (tidy_lm) to tidy the data
-
 #add predictions
 modelr::add_predictions(bwt_masterdata, fit)
 
-#Error in UseMethod("predict") :   no applicable method for 'predict' applied to an object of class "c('tbl_df', 'tbl', 'data.frame')"
+#fit cannot be used for modelr if I already tidy them, so I created new df (tidy_lm) to tidy the data
+
+#plot
+bwt_model = bwt_masterdata %>% 
+  modelr::add_residuals(fit) %>% 
+  modelr::add_predictions(fit)
+
+ggplot(bwt_model, aes(x = pred, y = resid)) +
+  geom_point(alpha=0.5) +
+  labs(
+    x = "Fitted Values",
+    y = "Residuals",
+    title = "Model Residuals vs. Fitted Values"
+  ) +
+  theme_minimal()
 ```
 
+The model hypothesized that baby's birthweight is influenced by mother's weightgain and smoking habit during the pregnancy. There are strong evidence that smoking during pregnancy negatively affects birthweight. Meanwhile, while there are evidence of mother's weight gain positively affects birthweight, this effect apparently dependent on the timing of the weight gain, with mothers who gain weight during the 2nd trimester seems to positively affects birthweight the most. 
 
-3c. Compare your model to two others:
+**3c. Compare your model** to two others:
 
 - One using length at birth and gestational age as predictors (main effects only)
 - One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
 
 Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
+
+**Model 2**
+```{r model 2}
+#load packages
+library(mgcv)
+
+#fit as the test data
+#length and GA as predictor = test data
+fit2 = lm(bwt ~ blength + gaweeks, data = bwt_masterdata)
+
+tidy_lm2 = fit2%>% 
+  broom::tidy()
+
+bwt_model2 = bwt_masterdata %>% 
+  modelr::add_residuals(fit2) %>% 
+  modelr::add_predictions(fit2)
+
+#the website say "It’s worth noting, though, that if all the models you want to fit use lm, you can skip this." and since my model both use lm, do I skip them?
+
+ggplot(bwt_model2, aes(x = pred, y = resid)) +
+  geom_point(alpha=0.5) +
+  labs(
+    x = "Fitted Values",
+    y = "Residuals",
+    title = "Model Residuals vs. Fitted Values"
+  ) +
+  theme_minimal()
+
+#fit2 is much different from fit in distribution
+```
+
+
+**Model 3**
+```{r model 3}
+#head circumference, length, sex
+
+
+
+```
+
+**comparison**
+```{r cross_validation}
+cv_df1 = crossv_mc(bwt_masterdata, n = 100, test = 0.2) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_df1 = cv_df1 %>% 
+  mutate(
+    fit_mod  = map(train, \(df) lm(bwt ~ smoken + wtgain, data = df)),
+    fit2_mod  = map(train, \(df) lm(bwt ~ blength + gaweeks, data = df))
+  ) %>% 
+  mutate(
+    rmse_fit = map2_dbl(fit_mod, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_fit2 = map2_dbl(fit2_mod, test, \(mod, df) rmse(model = mod, data = df))
+  )
+
+cv_df1 %>%  
+  select(starts_with("rmse")) %>%  
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") |> 
+  mutate(model = fct_inorder(model)) |> 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
