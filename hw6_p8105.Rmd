@@ -126,7 +126,7 @@ ggplot(homicide_stat, aes(x = OR, y = city_state)) +
 #ggplot still change my df into list
 ```
 
-Comment on the plot
+My `fct_reorder` and `arrange` function didn't work, so I couldn't organize the plot based on the OR. But we can see that in most city-states, male victim's cases have lower odds of being solved compared to female victim's. Only 3 city-states where male victim's cases have higher odds of being solved, which are Stockton (CA), Fresno (CA), and Albuquerque (NM)- all of which has wide confidence interval. 
 
 ## Problem 3
 
@@ -147,7 +147,6 @@ bwt_masterdata = homicide = read.csv("./data/birthweight.csv") %>%
 
 **3b. Propose a regression model for birthweight. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.**
 
-Should I only choose 1 variable? so smoking only OR weight gain only?
 ```{r bwt model, warning=FALSE, message=FALSE, results='hide'}
 #loading packages
 library(modelr)
@@ -181,7 +180,7 @@ ggplot(bwt_model, aes(x = pred, y = resid)) +
   theme_minimal()
 ```
 
-The model hypothesized that baby's birthweight is influenced by mother's weightgain and smoking habit during the pregnancy. There are strong evidence that smoking during pregnancy negatively affects birthweight. Meanwhile, while there are evidence of mother's weight gain positively affects birthweight, this effect apparently dependent on the timing of the weight gain, with mothers who gain weight during the 2nd trimester seems to positively affects birthweight the most. 
+The model hypothesized that baby's birthweight is influenced by mother's weightgain and smoking habit during the pregnancy. There are strong evidence that smoking during pregnancy negatively affects birthweight. Meanwhile, while there are evidence of mother's weight gain positively affects birthweight, this effect apparently dependent on the timing of the weight gain, with mothers who gain weight during the 2nd trimester seems to positively affects birthweight the most. As the outcome is not binary, I used `lm` function with `bwt` as the outcome and `smoken` and `wtgain` as the independent predictors. I test the `modelr` package individually to ensure the code is correct, then merge them in `bwt_model` dataframe. Then I made the plot, with prediction in the x axis and residuals in the y axis. 
 
 **3c. Compare your model** to two others:
 
@@ -244,11 +243,6 @@ ggplot(bwt_model3, aes(x = pred, y = resid)) +
 
 **comparison**
 ```{r cross_validation}
-#the website say "It’s worth noting, though, that if all the models you want to fit use lm, you can skip this." and since my model both use lm, do I skip them?
-
-#the masterdata become the training data, the models we build become the test data
-#do i still do the 80/20 separation? or does the test data 100% from bwt_masterdata?
-
 cv_df1 = crossv_mc(bwt_masterdata, n = 100, test = 0.2) %>% 
   mutate(
     train = map(train, as_tibble),
@@ -256,9 +250,9 @@ cv_df1 = crossv_mc(bwt_masterdata, n = 100, test = 0.2) %>%
 
 cv_df1 = cv_df1 %>% 
   mutate(
-    fit_mod  = map(train, \(df) lm(bwt ~ smoken + wtgain, data = df)),
-    fit2_mod  = map(train, \(df) lm(bwt ~ blength + gaweeks, data = df)),
-    fit3_mod = map(train, \(df) lm(bwt ~ bhead*blength*babysex + bhead + blength + babysex, data = df))
+    fit_mod  = map(train, \(df) lm(bwt ~ smoken + wtgain, data = bwt_masterdata)),
+    fit2_mod  = map(train, \(df) lm(bwt ~ blength + gaweeks, data = bwt_masterdata)),
+    fit3_mod = map(train, \(df) lm(bwt ~ bhead*blength*babysex + bhead + blength + babysex, data = bwt_masterdata))
   ) %>% 
   mutate(
     rmse_fit = map2_dbl(fit_mod, test, \(mod, df) rmse(model = mod, data = df)),
@@ -283,3 +277,4 @@ cv_df1 %>%
   )
 ```
 
+As fit3 (model3) has the lowest RMSE, it has the best fit. 
