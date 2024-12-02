@@ -143,16 +143,19 @@ bwt_masterdata = homicide = read.csv("./data/birthweight.csv") %>%
 3b. Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
 ```{r bwt model}
 #loading packages
-
+library(modelr)
 
 #model building
-fit = lm(bwt ~ smoken + wtgain, data = bwt_masterdata) %>% 
+fit = lm(bwt ~ smoken + wtgain, data = bwt_masterdata) 
+
+tidy_lm = fit%>% 
   broom::tidy()
 
 #add residuals
 modelr::add_residuals(bwt_masterdata, fit)
 
 #Error in eval(response_var(model), as.data.frame(data)) : object 'term' not found
+#fit cannot be used for modelr if I already tidy them, so I created new df (tidy_lm) to tidy the data
 
 #add predictions
 modelr::add_predictions(bwt_masterdata, fit)
